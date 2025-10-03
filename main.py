@@ -1,0 +1,90 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
+import re
+from collections import Counter
+
+# 1. Lexo datasetin
+df = pd.read_csv("SMSSpamCollection.csv", encoding="latin-1")
+df.columns = ["label", "message"]
+
+# 2. Data preprocessing
+def clean_text(text):
+    text = text.lower()  # lowercase
+    text = re.sub(r'[^a-z0-9\s]', '', text)  # remove punctuation
+    return text
+
+df['clean_message'] = df['message'].apply(clean_text)
+
+# 3. Exploratory analysis
+print("\n--- Numri i mesazheve për kategori ---")
+print(df['label'].value_counts())
+
+# Fjalët me te perdorura
+all_words = ' '.join(df['clean_message']).split()
+word_counts = Counter(all_words)
+print("\n--- 10 fjalët më të përdorura ---")
+print(word_counts.most_common(10))
+
+# 4. Nda variablat
+X = df['clean_message']
+y = df['label']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# 5. TF-IDF
+vectorizer = TfidfVectorizer(stop_words='english')
+X_train_tfidf = vectorizer.fit_transform(X_train)
+X_test_tfidf = vectorizer.transform(X_test)
+
+# 6. Trajno Logistic Regression
+lr_model = LogisticRegression()
+lr_model.fit(X_train_tfidf, y_train)
+y_pred_lr = lr_model.predict(X_test_tfidf)
+
+print("\n--- Logistic Regression Results ---")
+print("Accuracy:", accuracy_score(y_test, y_pred_lr))
+print(classification_report(y_test, y_pred_lr))
+
+# Confusion matrix
+cm = confusion_matrix(y_test, y_pred_lr)
+sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=["ham", "spam"], yticklabels=["ham", "spam"])
+plt.xlabel("Predicted")
+plt.ylabel("True")
+plt.title("Logistic Regression Confusion Matrix")
+plt.savefig("confusion_matrix.png")  # ruan figurën
+plt.show()
+
+# 7. Trajno Naive Bayes
+nb_model = MultinomialNB()
+nb_model.fit(X_train_tfidf, y_train)
+y_pred_nb = nb_model.predict(X_test_tfidf)
+
+print("\n--- Naive Bayes Results ---")
+print("Accuracy:", accuracy_score(y_test, y_pred_nb))
+print(classification_report(y_test, y_pred_nb))
+
+# 8. Funksion për parashikim të mesazheve të reja (LR)
+def predict_message(msg):
+    msg_clean = clean_text(msg)
+    msg_tfidf = vectorizer.transform([msg_clean])
+    prediction = lr_model.predict(msg_tfidf)[0]
+    return prediction
+
+# 9. Input interaktiv
+print("\nMirësevini te Spam Detector!")
+print("Shkruani mesazhe dhe programi do të tregojë nëse janë ham ose spam.")
+print("Shkruani 'exit' për të dalë.\n")
+
+while True:
+    new_msg = input("Mesazhi yt: ")
+    if new_msg.lower() == "exit":
+        print("Duke dalë...")
+        break
+    result = predict_message(new_msg)
+    print("Parashikimi:", result, "\n")
